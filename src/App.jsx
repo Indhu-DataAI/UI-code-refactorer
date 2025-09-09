@@ -47,8 +47,8 @@ function App() {
     }
   });
  
-  const BACKEND = "http://localhost:10000";
- 
+const BACKEND = "";
+
   // Agent definitions
   const AGENT_DEFINITIONS = {
     ragAgent: {
