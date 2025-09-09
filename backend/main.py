@@ -45,12 +45,14 @@ if not dist_path.exists():
 
 if dist_path.exists():
     # Mount the entire dist directory to serve all static assets
-    app.mount("/assets", StaticFiles(directory=str(dist_path / "assets")), name="assets")
-    # Also serve other static files like favicon
-    app.mount("/static", StaticFiles(directory=str(dist_path)), name="static")
-    print(f"[SUCCESS] Mounted static files from: {dist_path.absolute()}")
-else:
-    print(f"[WARNING] Frontend dist folder not found. Checked paths: ../dist, ./dist, ../../dist")
+#     app.mount("/assets", StaticFiles(directory=str(dist_path / "assets")), name="assets")
+#     # Also serve other static files like favicon
+#     app.mount("/static", StaticFiles(directory=str(dist_path)), name="static")
+#     print(f"[SUCCESS] Mounted static files from: {dist_path.absolute()}")
+# else:
+#     print(f"[WARNING] Frontend dist folder not found. Checked paths: ../dist, ./dist, ../../dist")
+      app.mount("/", StaticFiles(directory=str(dist_path), html=True), name="frontend")
+
 
 UPLOAD_DIR = Path("uploaded_code")
 UPLOAD_DIR.mkdir(exist_ok=True)
