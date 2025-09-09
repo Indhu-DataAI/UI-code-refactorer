@@ -47,7 +47,7 @@ function App() {
     }
   });
  
-  const BACKEND = "http://localhost:8002";
+  const BACKEND = "http://localhost:8000";
  
   // Agent definitions
   const AGENT_DEFINITIONS = {
