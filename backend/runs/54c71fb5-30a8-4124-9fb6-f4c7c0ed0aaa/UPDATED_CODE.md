@@ -1,0 +1,1 @@
+Since I am unable to retrieve specific code snippets from the codebase, I recommend looking for CSS files or components that handle styles and modifying the margin color there, using the examples provided as a guide.

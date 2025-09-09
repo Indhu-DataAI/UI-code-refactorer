@@ -1,0 +1,1 @@
+To change the color of a button, locate the button's CSS styles in your codebase and update the `background-color` and `color` properties as needed. If you have specific files or components, you would modify them similarly to the examples provided.

@@ -1,0 +1,50 @@
+```css
+.offers {
+  padding: 2em;
+  background-color: #f9f9f9;
+}
+
+.offers__container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2em;
+}
+
+.offers__row {
+  display: flex;
+  flex-direction: column;
+  gap: 1em;
+}
+
+.offer {
+  background: white;
+  padding: 1em;
+  border-radius: 0.5em;
+  box-shadow: 0 0 0.1em rgba(0, 0, 0, 0.1);
+  text-align: center;
+}
+
+.offer img {
+  max-width: 100%;
+  height: auto;
+}
+
+.offer__price {
+  font-size: 1.25em;
+  font-weight: bold;
+}
+
+.original-price {
+  text-decoration: line-through;
+  color: #777;
+}
+
+.discounted-price {
+  color: rgb(180, 120, 30);
+}
+
+.offer__details {
+  color: green;
+  font-weight: bold;
+}
+```
