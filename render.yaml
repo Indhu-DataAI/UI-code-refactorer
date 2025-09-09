@@ -1,25 +1,22 @@
 services:
-  # Frontend service
+  # Unified service for frontend and backend
   - type: web
-    name: userstory-ui-frontend
-    env: node
-    buildCommand: npm install && npm run build
-    startCommand: npm start
+    name: userstory-ui
+    env: python
+    buildCommand: |
+      # Install Node.js dependencies and build frontend
+      npm install
+      npm run build
+      # Install Python dependencies for backend
+      cd backend
+      pip install --upgrade pip
+      pip install --prefer-binary -r requirements.txt
+    startCommand: |
+      cd backend
+      python main.py
     envVars:
       - key: NODE_ENV
         value: production
-
-  # Backend service  
-  - type: web
-    name: userstory-ui-backend
-    env: python
-    rootDir: backend
-    buildCommand: |
-      
-      pip install --upgrade pip
-      pip install --prefer-binary -r requirements.txt
-    startCommand: python main.py
-    envVars:
       - key: PYTHONPATH
         value: /opt/render/project/src
       - key: OPENAI_API_KEY
