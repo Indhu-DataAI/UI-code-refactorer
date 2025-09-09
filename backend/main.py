@@ -2,13 +2,14 @@ import os
 from pathlib import Path
 from fastapi import FastAPI, UploadFile, File, HTTPException, Form
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from typing import List
 import shutil
 import zipfile
 from zipfile import ZipFile
 from io import BytesIO
-from fastapi.responses import FileResponse
 from langchain_community.chat_models import ChatOllama
 
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
@@ -31,6 +32,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Mount static files for frontend
+dist_path = Path("../dist")
+if dist_path.exists():
+    app.mount("/static", StaticFiles(directory="../dist"), name="static")
 
 UPLOAD_DIR = Path("uploaded_code")
 UPLOAD_DIR.mkdir(exist_ok=True)
@@ -741,6 +747,30 @@ async def clear_all_data():
         return {"message": "All data cleared successfully. Ready for fresh upload."}
     except Exception as e:
         return {"error": f"Failed to clear data: {str(e)}"}
+
+# Serve React frontend
+@app.get("/")
+async def serve_frontend():
+    """Serve the React frontend"""
+    index_path = Path("../dist/index.html")
+    if index_path.exists():
+        return FileResponse("../dist/index.html")
+    else:
+        return {"message": "Frontend not built. Run 'npm run build' first."}
+
+# Catch-all route for React Router
+@app.get("/{full_path:path}")
+async def serve_frontend_routes(full_path: str):
+    """Handle React Router routes"""
+    # Don't interfere with API routes
+    if full_path.startswith(("api", "docs", "openapi.json", "static")):
+        raise HTTPException(status_code=404, detail="Not found")
+    
+    index_path = Path("../dist/index.html")
+    if index_path.exists():
+        return FileResponse("../dist/index.html")
+    else:
+        raise HTTPException(status_code=404, detail="Frontend not found")
 
 if __name__ == "__main__":
     import uvicorn
