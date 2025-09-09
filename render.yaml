@@ -1,0 +1,23 @@
+services:
+  # Frontend service
+  - type: web
+    name: userstory-ui-frontend
+    env: node
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+
+  # Backend service  
+  - type: web
+    name: userstory-ui-backend
+    env: python
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: python main.py
+    envVars:
+      - key: PYTHONPATH
+        value: /opt/render/project/src
+      - key: OPENAI_API_KEY
+        sync: false  # You'll need to set this manually in Render dashboard
