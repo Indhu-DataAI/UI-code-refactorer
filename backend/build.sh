@@ -10,5 +10,10 @@ mkdir -p /tmp/cargo /tmp/cargo-target
 # Upgrade pip first
 pip install --upgrade pip
 
-# Install requirements
-pip install -r requirements.txt
+echo "Installing Python packages with Cargo environment variables set..."
+
+# Try to install with pre-compiled wheels first, fallback to source compilation
+pip install --prefer-binary -r requirements.txt || {
+    echo "Binary installation failed, trying with source compilation..."
+    pip install --no-cache-dir -r requirements.txt
+}

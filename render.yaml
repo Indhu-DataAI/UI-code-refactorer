@@ -14,7 +14,12 @@ services:
     name: userstory-ui-backend
     env: python
     rootDir: backend
-    buildCommand: chmod +x build.sh && ./build.sh
+    buildCommand: |
+      export CARGO_HOME=/tmp/cargo
+      export CARGO_TARGET_DIR=/tmp/cargo-target
+      mkdir -p /tmp/cargo /tmp/cargo-target
+      pip install --upgrade pip
+      pip install --prefer-binary -r requirements.txt
     startCommand: python main.py
     envVars:
       - key: PYTHONPATH
