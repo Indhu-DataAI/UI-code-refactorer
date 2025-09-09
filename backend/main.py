@@ -34,9 +34,23 @@ app.add_middleware(
 )
 
 # Mount static files for frontend
+# In Render deployment, the dist folder is at the project root
 dist_path = Path("../dist")
+if not dist_path.exists():
+    # Try alternative path for development
+    dist_path = Path("./dist")
+if not dist_path.exists():
+    # Try another alternative path structure
+    dist_path = Path("../../dist")
+
 if dist_path.exists():
-    app.mount("/static", StaticFiles(directory="../dist"), name="static")
+    # Mount the entire dist directory to serve all static assets
+    app.mount("/assets", StaticFiles(directory=str(dist_path / "assets")), name="assets")
+    # Also serve other static files like favicon
+    app.mount("/static", StaticFiles(directory=str(dist_path)), name="static")
+    print(f"[SUCCESS] Mounted static files from: {dist_path.absolute()}")
+else:
+    print(f"[WARNING] Frontend dist folder not found. Checked paths: ../dist, ./dist, ../../dist")
 
 UPLOAD_DIR = Path("uploaded_code")
 UPLOAD_DIR.mkdir(exist_ok=True)
@@ -727,6 +741,59 @@ async def health_check():
         "openai_key_set": bool(os.getenv("OPENAI_API_KEY"))
     }
 
+# Debug endpoint to check file structure
+@app.get("/debug/file-structure")
+async def debug_file_structure():
+    """Debug endpoint to check file structure and paths"""
+    current_dir = Path.cwd()
+    
+    # Check various directory structures
+    structure_info = {
+        "current_directory": str(current_dir),
+        "backend_files": [],
+        "parent_files": [],
+        "dist_locations": []
+    }
+    
+    # List current directory (backend)
+    try:
+        for item in current_dir.iterdir():
+            structure_info["backend_files"].append({
+                "name": item.name,
+                "type": "directory" if item.is_dir() else "file"
+            })
+    except:
+        pass
+    
+    # List parent directory
+    try:
+        parent_dir = current_dir.parent
+        for item in parent_dir.iterdir():
+            structure_info["parent_files"].append({
+                "name": item.name,
+                "type": "directory" if item.is_dir() else "file"
+            })
+    except:
+        pass
+    
+    # Check for dist folder locations
+    possible_dist_paths = [
+        Path("../dist"),
+        Path("./dist"),
+        Path("../../dist"),
+        current_dir / "dist",
+        current_dir.parent / "dist"
+    ]
+    
+    for dist_path in possible_dist_paths:
+        structure_info["dist_locations"].append({
+            "path": str(dist_path),
+            "exists": dist_path.exists(),
+            "absolute_path": str(dist_path.absolute()) if dist_path.exists() else None
+        })
+    
+    return structure_info
+
 # Clear all data endpoint for debugging
 @app.post("/clear-all-data/")
 async def clear_all_data():
@@ -752,25 +819,54 @@ async def clear_all_data():
 @app.get("/")
 async def serve_frontend():
     """Serve the React frontend"""
-    index_path = Path("../dist/index.html")
-    if index_path.exists():
-        return FileResponse("../dist/index.html")
-    else:
-        return {"message": "Frontend not built. Run 'npm run build' first."}
+    # Check multiple possible paths for the index.html
+    possible_paths = [
+        Path("../dist/index.html"),
+        Path("./dist/index.html"), 
+        Path("../../dist/index.html")
+    ]
+    
+    for index_path in possible_paths:
+        if index_path.exists():
+            print(f"[SUCCESS] Serving frontend from: {index_path.absolute()}")
+            return FileResponse(str(index_path))
+    
+    print("[WARNING] Frontend index.html not found in any expected location")
+    return {
+        "message": "Frontend not built or not found", 
+        "checked_paths": [str(p) for p in possible_paths],
+        "current_dir": str(Path.cwd())
+    }
 
 # Catch-all route for React Router
 @app.get("/{full_path:path}")
 async def serve_frontend_routes(full_path: str):
-    """Handle React Router routes"""
+    """Handle React Router routes and static assets"""
     # Don't interfere with API routes
-    if full_path.startswith(("api", "docs", "openapi.json", "static")):
+    if full_path.startswith(("api", "docs", "openapi.json", "static", "assets", "health", "debug", "list-indexed-files", "upload-zip", "generate-updated-zip", "save-updated-zip", "download-zip", "test-indexing", "clear-all-data")):
         raise HTTPException(status_code=404, detail="Not found")
     
-    index_path = Path("../dist/index.html")
-    if index_path.exists():
-        return FileResponse("../dist/index.html")
-    else:
-        raise HTTPException(status_code=404, detail="Frontend not found")
+    # Check for static assets first (favicon, etc.)
+    possible_dist_paths = [
+        Path("../dist"),
+        Path("./dist"), 
+        Path("../../dist")
+    ]
+    
+    for dist_path in possible_dist_paths:
+        if dist_path.exists():
+            asset_path = dist_path / full_path
+            if asset_path.exists() and asset_path.is_file():
+                return FileResponse(str(asset_path))
+            break
+    
+    # Fall back to serving index.html for React Router
+    for dist_path in possible_dist_paths:
+        index_path = dist_path / "index.html"
+        if index_path.exists():
+            return FileResponse(str(index_path))
+    
+    raise HTTPException(status_code=404, detail="Frontend not found")
 
 if __name__ == "__main__":
     import uvicorn
