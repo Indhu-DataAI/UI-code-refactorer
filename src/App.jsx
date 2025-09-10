@@ -47,8 +47,8 @@ function App() {
     }
   });
  
-const BACKEND = "";
-
+  const BACKEND = "http://localhost:8001";
+ 
   // Agent definitions
   const AGENT_DEFINITIONS = {
     ragAgent: {

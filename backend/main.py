@@ -33,26 +33,23 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Mount static files for frontend
-# In Render deployment, the dist folder is at the project root
+# Static file configuration - FIXED: Don't mount at root path
 dist_path = Path("../dist")
 if not dist_path.exists():
-    # Try alternative path for development
     dist_path = Path("./dist")
 if not dist_path.exists():
-    # Try another alternative path structure
     dist_path = Path("../../dist")
 
+# IMPORTANT: Only mount static files if dist exists AND at a specific path, not root
 if dist_path.exists():
-    # Mount the entire dist directory to serve all static assets
-#     app.mount("/assets", StaticFiles(directory=str(dist_path / "assets")), name="assets")
-#     # Also serve other static files like favicon
-#     app.mount("/static", StaticFiles(directory=str(dist_path)), name="static")
-#     print(f"[SUCCESS] Mounted static files from: {dist_path.absolute()}")
-# else:
-#     print(f"[WARNING] Frontend dist folder not found. Checked paths: ../dist, ./dist, ../../dist")
-      app.mount("/", StaticFiles(directory=str(dist_path), html=True), name="frontend")
-
+    # Mount assets and other static files at specific paths
+    try:
+        app.mount("/static", StaticFiles(directory=str(dist_path)), name="static")
+        print(f"[SUCCESS] Mounted static files from: {dist_path.absolute()}")
+    except Exception as e:
+        print(f"[WARNING] Failed to mount static files: {e}")
+else:
+    print(f"[WARNING] Frontend dist folder not found")
 
 UPLOAD_DIR = Path("uploaded_code")
 UPLOAD_DIR.mkdir(exist_ok=True)
@@ -65,10 +62,8 @@ FINAL_ZIP = "updated_codebase.zip"
 class UserStory(BaseModel):
     story: str
 
-# 🔧 IMPROVED: Enhanced code file loader with better error handling
 def load_code_files(code_dir=UPLOAD_DIR):
     """Load and process code files with improved chunking strategy"""
-    # Extended list of code file extensions
     code_extensions = [
         "*.py", "*.js", "*.jsx", "*.ts", "*.tsx", "*.java", "*.go", "*.rb", "*.php",
         "*.html", "*.css", "*.scss", "*.sass", "*.json", "*.xml", "*.yaml", "*.yml",
@@ -82,19 +77,15 @@ def load_code_files(code_dir=UPLOAD_DIR):
     
     print(f"🔍 Scanning directory: {code_dir}")
     
-    # Walk through directory manually for better control
     for root, dirs, files in os.walk(code_dir):
-        # Skip common non-code directories
         dirs[:] = [d for d in dirs if d not in ['.git', '__pycache__', 'node_modules', '.next', 'dist', 'build']]
         
         for file in files:
             file_path = Path(root) / file
             relative_path = file_path.relative_to(code_dir)
             
-            # Check if file matches any code extension
             if any(file_path.match(ext) for ext in code_extensions):
                 try:
-                    # Read file with proper encoding detection
                     content = ""
                     encodings = ['utf-8', 'latin-1', 'cp1252']
                     
@@ -107,7 +98,6 @@ def load_code_files(code_dir=UPLOAD_DIR):
                             continue
                     
                     if content:
-                        # Create document with enhanced metadata
                         doc = Document(
                             page_content=content,
                             metadata={
@@ -131,7 +121,6 @@ def load_code_files(code_dir=UPLOAD_DIR):
     print(f"📊 Processing complete: {files_processed} files processed, {files_failed} failed")
     return docs
 
-# 🔧 ENHANCED: More robust vectorstore creation with detailed logging
 def create_vectorstore(code_dir=UPLOAD_DIR, index_path=INDEX_PATH):
     """Create FAISS vectorstore with comprehensive error handling and logging"""
     
@@ -139,14 +128,12 @@ def create_vectorstore(code_dir=UPLOAD_DIR, index_path=INDEX_PATH):
     print(f"   📂 Source directory: {code_dir}")
     print(f"   📂 Index path: {index_path}")
     
-    # Check OpenAI API key
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
         raise ValueError("OpenAI API key not found in environment variables")
     
     print(f"   🔑 OpenAI API key: {'✅ Set' if api_key else '❌ Missing'} (length: {len(api_key) if api_key else 0})")
     
-    # Load all code files
     print("📚 Loading code files...")
     docs = load_code_files(code_dir)
     
@@ -155,7 +142,6 @@ def create_vectorstore(code_dir=UPLOAD_DIR, index_path=INDEX_PATH):
     
     print(f"📊 Loaded {len(docs)} documents successfully")
     
-    # Log document details
     total_content = sum(len(doc.page_content) for doc in docs)
     file_types = {}
     for doc in docs:
@@ -165,23 +151,21 @@ def create_vectorstore(code_dir=UPLOAD_DIR, index_path=INDEX_PATH):
     print(f"   📄 Total content size: {total_content:,} characters")
     print(f"   📂 File types: {file_types}")
     
-    # Create text splitter with detailed logging
     print("✂️  Splitting documents into chunks...")
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=1500,
         chunk_overlap=200,
         separators=[
-            "\n\nclass ",  # Class definitions
-            "\n\nfunction ",  # Function definitions  
-            "\n\ndef ",  # Python functions
-            "\n\n",  # Double newlines
-            "\n",  # Single newlines
-            " ",  # Spaces
-            ""  # Characters
+            "\n\nclass ",
+            "\n\nfunction ",
+            "\n\ndef ",
+            "\n\n",
+            "\n",
+            " ",
+            ""
         ]
     )
     
-    # Split documents with file path context
     split_docs = []
     for i, doc in enumerate(docs):
         try:
@@ -189,7 +173,6 @@ def create_vectorstore(code_dir=UPLOAD_DIR, index_path=INDEX_PATH):
             print(f"   📄 {doc.metadata['source']}: {len(chunks)} chunks")
             
             for chunk in chunks:
-                # Add file context to each chunk
                 enhanced_content = f"FILE_PATH: {chunk.metadata['source']}\n\n{chunk.page_content}"
                 chunk.page_content = enhanced_content
                 split_docs.append(chunk)
@@ -203,7 +186,6 @@ def create_vectorstore(code_dir=UPLOAD_DIR, index_path=INDEX_PATH):
     
     print(f"✅ Created {len(split_docs)} chunks from {len(docs)} files")
     
-    # Create embeddings with error handling
     print("🧠 Creating embeddings...")
     try:
         embeddings = OpenAIEmbeddings(
@@ -211,7 +193,6 @@ def create_vectorstore(code_dir=UPLOAD_DIR, index_path=INDEX_PATH):
             api_key=api_key
         )
         
-        # Test embeddings with a small sample first
         print("   🧪 Testing embeddings with sample text...")
         test_embedding = embeddings.embed_query("test")
         print(f"   ✅ Embedding test successful (dimension: {len(test_embedding)})")
@@ -220,10 +201,8 @@ def create_vectorstore(code_dir=UPLOAD_DIR, index_path=INDEX_PATH):
         print(f"   ❌ Embedding initialization failed: {e}")
         raise ValueError(f"Failed to initialize OpenAI embeddings: {str(e)}")
     
-    # Create FAISS vectorstore
     print("🔄 Building FAISS index...")
     try:
-        # Process in smaller batches to avoid memory issues
         batch_size = 50
         vectordb = None
         
@@ -232,22 +211,16 @@ def create_vectorstore(code_dir=UPLOAD_DIR, index_path=INDEX_PATH):
             print(f"   📦 Processing batch {i//batch_size + 1}/{(len(split_docs)-1)//batch_size + 1} ({len(batch)} chunks)")
             
             if vectordb is None:
-                # Create initial vectorstore
                 vectordb = FAISS.from_documents(batch, embeddings)
             else:
-                # Add to existing vectorstore
                 batch_db = FAISS.from_documents(batch, embeddings)
                 vectordb.merge_from(batch_db)
         
         print("💾 Saving FAISS index...")
         
-        # Ensure index directory exists
         index_path.mkdir(exist_ok=True, parents=True)
-        
-        # Save the index
         vectordb.save_local(str(index_path))
         
-        # Verify saved files
         saved_files = list(index_path.glob("*"))
         print(f"   📁 Saved index files: {[f.name for f in saved_files]}")
         
@@ -263,31 +236,120 @@ def create_vectorstore(code_dir=UPLOAD_DIR, index_path=INDEX_PATH):
         print(f"   📋 Full traceback: {traceback.format_exc()}")
         raise ValueError(f"Failed to create FAISS vectorstore: {str(e)}")
 
-# 🔧 UNIFIED: Single endpoint for code generation with RAG
+# API ENDPOINTS - FIXED: Properly organized and accessible
+
+@app.post("/upload-zip/")
+async def upload_zip(file: UploadFile = File(...)):
+    """Upload and index a ZIP file with detailed error reporting"""
+    print(f"📦 API CALL: /upload-zip/ - Processing ZIP file: {file.filename}")
+    
+    if not file.filename or not file.filename.endswith(".zip"):
+        raise HTTPException(status_code=400, detail="Only ZIP files are allowed")
+    
+    try:
+        print("🧹 Clearing previous data...")
+        if UPLOAD_DIR.exists():
+            shutil.rmtree(UPLOAD_DIR)
+        if INDEX_PATH.exists():
+            shutil.rmtree(INDEX_PATH)
+        
+        UPLOAD_DIR.mkdir(exist_ok=True)
+        
+        content = await file.read()
+        print(f"📁 Extracting ZIP ({len(content)} bytes)...")
+        
+        extracted_count = 0
+        with ZipFile(BytesIO(content)) as zip_file:
+            file_list = zip_file.namelist()
+            print(f"📋 ZIP contains {len(file_list)} entries")
+            
+            for item in file_list:
+                try:
+                    zip_file.extract(item, UPLOAD_DIR)
+                    if not item.endswith('/'):
+                        extracted_count += 1
+                except Exception as e:
+                    print(f"   ⚠️  Failed to extract {item}: {e}")
+        
+        extracted_files = []
+        if UPLOAD_DIR.exists():
+            for root, dirs, files in os.walk(UPLOAD_DIR):
+                for file_name in files:
+                    file_path = Path(root) / file_name
+                    rel_path = file_path.relative_to(UPLOAD_DIR)
+                    try:
+                        size = file_path.stat().st_size
+                        extracted_files.append({
+                            "path": str(rel_path),
+                            "size": size,
+                            "extension": file_path.suffix
+                        })
+                    except Exception as e:
+                        print(f"   ⚠️  Could not stat {rel_path}: {e}")
+        
+        print(f"✅ Successfully extracted {len(extracted_files)} files")
+        
+        extensions = {}
+        for f in extracted_files:
+            ext = f.get("extension", "no_extension")
+            extensions[ext] = extensions.get(ext, 0) + 1
+        print(f"📊 File types found: {extensions}")
+        
+        print("🔄 Creating FAISS index...")
+        try:
+            vectordb = create_vectorstore(code_dir=UPLOAD_DIR, index_path=INDEX_PATH)
+            
+            index_created = INDEX_PATH.exists()
+            index_files = list(INDEX_PATH.glob("*")) if index_created else []
+            
+            print(f"✅ FAISS index creation completed")
+            
+            return {
+                "message": "ZIP uploaded, extracted, and indexed successfully",
+                "files_extracted": len(extracted_files),
+                "file_types": extensions,
+                "index_created": index_created,
+                "index_files": [f.name for f in index_files],
+                "upload_dir": str(UPLOAD_DIR.absolute()),
+                "index_dir": str(INDEX_PATH.absolute())
+            }
+            
+        except Exception as index_error:
+            print(f"❌ Index creation failed: {str(index_error)}")
+            
+            return {
+                "message": "ZIP extracted but indexing failed",
+                "files_extracted": len(extracted_files),
+                "file_types": extensions,
+                "index_created": False,
+                "index_error": str(index_error),
+                "upload_dir": str(UPLOAD_DIR.absolute())
+            }
+        
+    except Exception as e:
+        print(f"❌ Upload failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Upload processing failed: {str(e)}")
+
 @app.post("/generate-updated-zip/")
 async def generate_updated_zip(user_story: UserStory):
     """Generate updated code using RAG and return the result"""
+    print(f"🚀 API CALL: /generate-updated-zip/ - Story: {user_story.story[:100]}...")
     
     if not INDEX_PATH.exists():
         raise HTTPException(status_code=400, detail="No codebase indexed yet. Please upload a ZIP file first.")
     
     try:
-        print(f"🚀 Starting code generation for story: {user_story.story}")
+        print(f"🚀 Starting code generation...")
         
-        # Load the vectorstore
         embeddings = OpenAIEmbeddings(
             model="text-embedding-3-large",
             api_key=os.getenv("OPENAI_API_KEY")
         )
         vectordb = FAISS.load_local(str(INDEX_PATH), embeddings, allow_dangerous_deserialization=True)
         
-        # 🔧 IMPROVED: Multi-stage retrieval for better context
         print("🔍 Performing semantic search...")
-        
-        # First, get initial relevant documents
         initial_docs = vectordb.similarity_search(user_story.story, k=15)
         
-        # Extract file paths and get complete file contexts
         relevant_files = set()
         for doc in initial_docs:
             source = doc.metadata.get('source', '')
@@ -296,19 +358,15 @@ async def generate_updated_zip(user_story: UserStory):
         
         print(f"📁 Found {len(relevant_files)} relevant files: {list(relevant_files)}")
         
-        # Build comprehensive context
         context_parts = []
         file_contents = {}
         
-        # Get all chunks for each relevant file
         for file_path in relevant_files:
             file_chunks = vectordb.similarity_search(f"FILE_PATH: {file_path}", k=10)
             
-            # Combine chunks for complete file context
             file_content_parts = []
             for chunk in file_chunks:
                 if chunk.metadata.get('source') == file_path:
-                    # Remove the FILE_PATH prefix for cleaner content
                     content = chunk.page_content
                     if content.startswith("FILE_PATH:"):
                         content = content.split("\n\n", 1)[1] if "\n\n" in content else content
@@ -320,13 +378,10 @@ async def generate_updated_zip(user_story: UserStory):
                 context_parts.append(f"=== FILE: {file_path} ===\n{combined_content}\n")
         
         full_context = "\n".join(context_parts)
-        
         print(f"📝 Built context with {len(file_contents)} files, {len(full_context)} characters")
         
-        # Create LLM for code generation
         llm = ChatOpenAI(model="gpt-4o-mini", temperature=0, api_key=os.getenv("OPENAI_API_KEY"))
         
-        # 🔧 ENHANCED: More detailed prompt for better code generation
         enhanced_prompt = f"""You are an expert software engineer tasked with modifying an existing codebase. 
 
 MODIFICATION REQUEST:
@@ -373,8 +428,6 @@ Begin generating the modified files now:"""
         print(f"❌ Code generation failed: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Code generation failed: {str(e)}")
 
-# 🔧 ENHANCED: ZIP upload with comprehensive error handling and debugging
-# Helper: parse LLM response into file updates
 def parse_updated_code(updated_code: str):
     files = {}
     current_file = None
@@ -398,6 +451,8 @@ def parse_updated_code(updated_code: str):
 @app.post("/save-updated-zip/")
 async def save_updated_zip(updated_code: str = Form(...)):
     """Save AI-updated code into files and repackage as ZIP"""
+    print(f"🚀 API CALL: /save-updated-zip/ - Code length: {len(updated_code)}")
+    
     try:
         if not UPLOAD_DIR.exists():
             raise HTTPException(status_code=400, detail="No uploaded codebase found")
@@ -406,18 +461,19 @@ async def save_updated_zip(updated_code: str = Form(...)):
         if not files:
             raise HTTPException(status_code=400, detail="No files parsed from updated code")
 
+        print(f"📁 Parsed {len(files)} files: {list(files.keys())}")
+
         updated_dir = Path(UPDATED_DIR)
         if updated_dir.exists():
             shutil.rmtree(updated_dir)
         shutil.copytree(UPLOAD_DIR, updated_dir)
 
-        # Write updates into updated_dir
         for filepath, content in files.items():
             file_path = updated_dir / filepath
             file_path.parent.mkdir(parents=True, exist_ok=True)
             file_path.write_text(content, encoding="utf-8")
+            print(f"✅ Updated: {filepath}")
 
-        # Re-zip everything
         final_zip_path = Path(FINAL_ZIP)
         if final_zip_path.exists():
             final_zip_path.unlink()
@@ -429,134 +485,29 @@ async def save_updated_zip(updated_code: str = Form(...)):
                     rel_path = abs_path.relative_to(updated_dir)
                     zipf.write(abs_path, rel_path)
 
+        print(f"✅ Created ZIP with {len(files)} updated files")
         return {"message": "Updated ZIP created successfully", "download_url": "/download-zip"}
 
     except Exception as e:
+        print(f"❌ Save failed: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to save updated ZIP: {e}")
 
 @app.get("/download-zip")
 async def download_zip():
     """Download the latest updated ZIP"""
+    print("🚀 API CALL: /download-zip")
+    
     final_zip_path = Path(FINAL_ZIP)
     if not final_zip_path.exists():
         raise HTTPException(status_code=404, detail="No updated ZIP found. Generate it first.")
+    
+    print(f"✅ Serving ZIP file: {final_zip_path} ({final_zip_path.stat().st_size} bytes)")
     return FileResponse(final_zip_path, filename="updated_codebase.zip", media_type="application/zip")
 
-@app.post("/upload-zip/")
-async def upload_zip(file: UploadFile = File(...)):
-    """Upload and index a ZIP file with detailed error reporting"""
-    
-    if not file.filename or not file.filename.endswith(".zip"):
-        raise HTTPException(status_code=400, detail="Only ZIP files are allowed")
-    
-    print(f"📦 Processing ZIP file: {file.filename}")
-    
-    try:
-        # Clear previous data
-        print("🧹 Clearing previous data...")
-        if UPLOAD_DIR.exists():
-            shutil.rmtree(UPLOAD_DIR)
-            print(f"   ✅ Removed old upload directory")
-        if INDEX_PATH.exists():
-            shutil.rmtree(INDEX_PATH)
-            print(f"   ✅ Removed old index directory")
-        
-        UPLOAD_DIR.mkdir(exist_ok=True)
-        print(f"   ✅ Created fresh upload directory: {UPLOAD_DIR}")
-        
-        # Extract ZIP contents
-        content = await file.read()
-        print(f"📁 Extracting ZIP ({len(content)} bytes)...")
-        
-        extracted_count = 0
-        with ZipFile(BytesIO(content)) as zip_file:
-            # List all files in ZIP
-            file_list = zip_file.namelist()
-            print(f"📋 ZIP contains {len(file_list)} entries")
-            
-            # Extract all files with progress
-            for item in file_list:
-                try:
-                    zip_file.extract(item, UPLOAD_DIR)
-                    if not item.endswith('/'):  # Don't count directories
-                        extracted_count += 1
-                except Exception as e:
-                    print(f"   ⚠️  Failed to extract {item}: {e}")
-        
-        # Verify extraction with detailed file analysis
-        extracted_files = []
-        if UPLOAD_DIR.exists():
-            for root, dirs, files in os.walk(UPLOAD_DIR):
-                for file_name in files:
-                    file_path = Path(root) / file_name
-                    rel_path = file_path.relative_to(UPLOAD_DIR)
-                    try:
-                        size = file_path.stat().st_size
-                        extracted_files.append({
-                            "path": str(rel_path),
-                            "size": size,
-                            "extension": file_path.suffix
-                        })
-                    except Exception as e:
-                        print(f"   ⚠️  Could not stat {rel_path}: {e}")
-        
-        print(f"✅ Successfully extracted {len(extracted_files)} files to {UPLOAD_DIR}")
-        
-        # Log file types found
-        extensions = {}
-        for f in extracted_files:
-            ext = f.get("extension", "no_extension")
-            extensions[ext] = extensions.get(ext, 0) + 1
-        print(f"📊 File types found: {extensions}")
-        
-        # Create vector index with detailed error handling
-        print("🔄 Creating FAISS index...")
-        try:
-            vectordb = create_vectorstore(code_dir=UPLOAD_DIR, index_path=INDEX_PATH)
-            
-            # Verify index was created
-            index_created = INDEX_PATH.exists()
-            index_files = list(INDEX_PATH.glob("*")) if index_created else []
-            
-            print(f"✅ FAISS index creation completed")
-            print(f"   📂 Index directory exists: {index_created}")
-            print(f"   📄 Index files created: {[f.name for f in index_files]}")
-            
-            return {
-                "message": "ZIP uploaded, extracted, and indexed successfully",
-                "files_extracted": len(extracted_files),
-                "file_types": extensions,
-                "index_created": index_created,
-                "index_files": [f.name for f in index_files],
-                "upload_dir": str(UPLOAD_DIR.absolute()),
-                "index_dir": str(INDEX_PATH.absolute())
-            }
-            
-        except Exception as index_error:
-            print(f"❌ Index creation failed: {str(index_error)}")
-            import traceback
-            print(f"   📋 Full traceback: {traceback.format_exc()}")
-            
-            # Return partial success - files extracted but not indexed
-            return {
-                "message": "ZIP extracted but indexing failed",
-                "files_extracted": len(extracted_files),
-                "file_types": extensions,
-                "index_created": False,
-                "index_error": str(index_error),
-                "upload_dir": str(UPLOAD_DIR.absolute())
-            }
-        
-    except Exception as e:
-        print(f"❌ Upload failed: {str(e)}")
-        import traceback
-        print(f"   📋 Full traceback: {traceback.format_exc()}")
-        raise HTTPException(status_code=500, detail=f"Upload processing failed: {str(e)}")
-
-# 🔧 ENHANCED: Debug endpoint with comprehensive diagnostics
 @app.get("/list-indexed-files/")
 async def list_indexed_files():
     """Debug endpoint with detailed diagnostics"""
+    print("🚀 API CALL: /list-indexed-files/")
     
     debug_info = {
         "directories": {
@@ -571,10 +522,8 @@ async def list_indexed_files():
         }
     }
     
-    # Check actual uploaded files
     actual_files = []
     if UPLOAD_DIR.exists():
-        print(f"🔍 Scanning upload directory: {UPLOAD_DIR}")
         for root, dirs, files in os.walk(UPLOAD_DIR):
             for file in files:
                 file_path = os.path.join(root, file)
@@ -598,12 +547,10 @@ async def list_indexed_files():
         debug_info["actual_files"] = []
         debug_info["upload_dir_error"] = "Upload directory does not exist"
     
-    # Check if index exists and try to load it
     if not INDEX_PATH.exists():
         debug_info["index_status"] = "Index directory does not exist"
         return debug_info
     
-    # Check index directory contents
     index_files = []
     if INDEX_PATH.exists():
         for item in INDEX_PATH.iterdir():
@@ -616,16 +563,12 @@ async def list_indexed_files():
     debug_info["index_files"] = index_files
     
     try:
-        # Try to load the FAISS index
         embeddings = OpenAIEmbeddings(
             model="text-embedding-3-large",
             api_key=os.getenv("OPENAI_API_KEY")
         )
         
-        print(f"🔄 Attempting to load FAISS index from {INDEX_PATH}")
         vectordb = FAISS.load_local(str(INDEX_PATH), embeddings, allow_dangerous_deserialization=True)
-        
-        # Sample the vector database
         sample_docs = vectordb.similarity_search("", k=50)
         
         indexed_files = {}
@@ -641,7 +584,6 @@ async def list_indexed_files():
             indexed_files[source]["chunks"] += 1
             indexed_files[source]["total_content_length"] += len(doc.page_content)
             
-            # Get a preview if we don't have one yet
             if not indexed_files[source]["preview"]:
                 content = doc.page_content
                 if content.startswith("FILE_PATH:"):
@@ -662,80 +604,12 @@ async def list_indexed_files():
     except Exception as e:
         debug_info["index_load_error"] = str(e)
         debug_info["index_status"] = "Index exists but failed to load"
-        print(f"❌ Failed to load FAISS index: {str(e)}")
         return debug_info
 
-# 🔧 NEW: Test endpoint for diagnosing indexing issues
-@app.post("/test-indexing/")
-async def test_indexing():
-    """Test the indexing process with a simple file"""
-    
-    try:
-        # Create a test directory and file
-        test_dir = Path("test_indexing")
-        if test_dir.exists():
-            shutil.rmtree(test_dir)
-        test_dir.mkdir()
-        
-        # Create a simple test file
-        test_file = test_dir / "test.js"
-        test_content = """
-// Test JavaScript file
-function hello(name) {
-    return `Hello, ${name}!`;
-}
-
-class TestClass {
-    constructor(value) {
-        this.value = value;
-    }
-    
-    getValue() {
-        return this.value;
-    }
-}
-
-export { hello, TestClass };
-"""
-        test_file.write_text(test_content)
-        
-        print(f"🧪 Created test file: {test_file}")
-        
-        # Test the indexing process
-        test_index_path = Path("test_faiss_index")
-        if test_index_path.exists():
-            shutil.rmtree(test_index_path)
-            
-        vectordb = create_vectorstore(code_dir=test_dir, index_path=test_index_path)
-        
-        # Test retrieval
-        test_query = "javascript function"
-        results = vectordb.similarity_search(test_query, k=3)
-        
-        # Clean up
-        shutil.rmtree(test_dir)
-        shutil.rmtree(test_index_path)
-        
-        return {
-            "status": "success",
-            "message": "Indexing test completed successfully",
-            "test_results": {
-                "chunks_created": len(results),
-                "sample_content": results[0].page_content[:200] if results else "No content found"
-            }
-        }
-        
-    except Exception as e:
-        import traceback
-        return {
-            "status": "failed", 
-            "error": str(e),
-            "traceback": traceback.format_exc()
-        }
-
-# Health check endpoint
 @app.get("/health")
 async def health_check():
+    """Health check endpoint"""
+    print("🚀 API CALL: /health")
     return {
         "status": "healthy",
         "upload_dir_exists": UPLOAD_DIR.exists(),
@@ -743,63 +617,10 @@ async def health_check():
         "openai_key_set": bool(os.getenv("OPENAI_API_KEY"))
     }
 
-# Debug endpoint to check file structure
-@app.get("/debug/file-structure")
-async def debug_file_structure():
-    """Debug endpoint to check file structure and paths"""
-    current_dir = Path.cwd()
-    
-    # Check various directory structures
-    structure_info = {
-        "current_directory": str(current_dir),
-        "backend_files": [],
-        "parent_files": [],
-        "dist_locations": []
-    }
-    
-    # List current directory (backend)
-    try:
-        for item in current_dir.iterdir():
-            structure_info["backend_files"].append({
-                "name": item.name,
-                "type": "directory" if item.is_dir() else "file"
-            })
-    except:
-        pass
-    
-    # List parent directory
-    try:
-        parent_dir = current_dir.parent
-        for item in parent_dir.iterdir():
-            structure_info["parent_files"].append({
-                "name": item.name,
-                "type": "directory" if item.is_dir() else "file"
-            })
-    except:
-        pass
-    
-    # Check for dist folder locations
-    possible_dist_paths = [
-        Path("../dist"),
-        Path("./dist"),
-        Path("../../dist"),
-        current_dir / "dist",
-        current_dir.parent / "dist"
-    ]
-    
-    for dist_path in possible_dist_paths:
-        structure_info["dist_locations"].append({
-            "path": str(dist_path),
-            "exists": dist_path.exists(),
-            "absolute_path": str(dist_path.absolute()) if dist_path.exists() else None
-        })
-    
-    return structure_info
-
-# Clear all data endpoint for debugging
 @app.post("/clear-all-data/")
 async def clear_all_data():
     """Clear all uploaded files and indexes for a fresh start"""
+    print("🚀 API CALL: /clear-all-data/")
     try:
         if UPLOAD_DIR.exists():
             shutil.rmtree(UPLOAD_DIR)
@@ -810,18 +631,18 @@ async def clear_all_data():
         if os.path.exists(FINAL_ZIP):
             os.remove(FINAL_ZIP)
         
-        # Recreate directories
         UPLOAD_DIR.mkdir(exist_ok=True)
         
+        print("✅ All data cleared successfully")
         return {"message": "All data cleared successfully. Ready for fresh upload."}
     except Exception as e:
+        print(f"❌ Clear failed: {str(e)}")
         return {"error": f"Failed to clear data: {str(e)}"}
 
-# Serve React frontend
+# FRONTEND SERVING - FIXED: Only serve frontend for non-API routes
 @app.get("/")
 async def serve_frontend():
     """Serve the React frontend"""
-    # Check multiple possible paths for the index.html
     possible_paths = [
         Path("../dist/index.html"),
         Path("./dist/index.html"), 
@@ -833,22 +654,40 @@ async def serve_frontend():
             print(f"[SUCCESS] Serving frontend from: {index_path.absolute()}")
             return FileResponse(str(index_path))
     
-    print("[WARNING] Frontend index.html not found in any expected location")
+    print("[WARNING] Frontend index.html not found")
     return {
-        "message": "Frontend not built or not found", 
+        "message": "API is running but frontend not found", 
         "checked_paths": [str(p) for p in possible_paths],
-        "current_dir": str(Path.cwd())
+        "current_dir": str(Path.cwd()),
+        "api_endpoints": [
+            "/upload-zip/",
+            "/generate-updated-zip/", 
+            "/save-updated-zip/",
+            "/download-zip",
+            "/list-indexed-files/",
+            "/health",
+            "/clear-all-data/"
+        ]
     }
 
-# Catch-all route for React Router
+# FIXED: Catch-all route that properly handles API vs frontend routing
 @app.get("/{full_path:path}")
 async def serve_frontend_routes(full_path: str):
-    """Handle React Router routes and static assets"""
-    # Don't interfere with API routes
-    if full_path.startswith(("api", "docs", "openapi.json", "static", "assets", "health", "debug", "list-indexed-files", "upload-zip", "generate-updated-zip", "save-updated-zip", "download-zip", "test-indexing", "clear-all-data")):
-        raise HTTPException(status_code=404, detail="Not found")
+    """Handle React Router routes and static assets - FIXED"""
     
-    # Check for static assets first (favicon, etc.)
+    # CRITICAL: Don't interfere with API routes - check for API prefixes
+    api_routes = [
+        "upload-zip", "generate-updated-zip", "save-updated-zip", 
+        "download-zip", "list-indexed-files", "health", "clear-all-data",
+        "docs", "openapi.json", "redoc"
+    ]
+    
+    # If it's an API route, return 404 (let FastAPI handle it properly)
+    if any(full_path.startswith(route) for route in api_routes):
+        print(f"[API] Attempted to access API route via catch-all: /{full_path}")
+        raise HTTPException(status_code=404, detail="API endpoint not found")
+    
+    # Check for static assets first
     possible_dist_paths = [
         Path("../dist"),
         Path("./dist"), 
@@ -859,6 +698,7 @@ async def serve_frontend_routes(full_path: str):
         if dist_path.exists():
             asset_path = dist_path / full_path
             if asset_path.exists() and asset_path.is_file():
+                print(f"[STATIC] Serving static asset: {asset_path}")
                 return FileResponse(str(asset_path))
             break
     
@@ -866,11 +706,22 @@ async def serve_frontend_routes(full_path: str):
     for dist_path in possible_dist_paths:
         index_path = dist_path / "index.html"
         if index_path.exists():
+            print(f"[FRONTEND] Serving React app for route: /{full_path}")
             return FileResponse(str(index_path))
     
+    print(f"[WARNING] No frontend found for route: /{full_path}")
     raise HTTPException(status_code=404, detail="Frontend not found")
 
 if __name__ == "__main__":
     import uvicorn
     port = int(os.environ.get("PORT", 8000))
+    print(f"🚀 Starting server on port {port}")
+    print("📍 API endpoints available at:")
+    print("   POST /upload-zip/")
+    print("   POST /generate-updated-zip/") 
+    print("   POST /save-updated-zip/")
+    print("   GET  /download-zip")
+    print("   GET  /list-indexed-files/")
+    print("   GET  /health")
+    print("   POST /clear-all-data/")
     uvicorn.run(app, host="0.0.0.0", port=port)
