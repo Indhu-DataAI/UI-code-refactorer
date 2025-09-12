@@ -33,23 +33,23 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Static file configuration - FIXED: Don't mount at root path
-dist_path = Path("../dist")
-if not dist_path.exists():
-    dist_path = Path("./dist")
-if not dist_path.exists():
-    dist_path = Path("../../dist")
+# # Static file configuration - FIXED: Don't mount at root path
+# dist_path = Path("../dist")
+# if not dist_path.exists():
+#     dist_path = Path("./dist")
+# if not dist_path.exists():
+#     dist_path = Path("../../dist")
 
-# IMPORTANT: Only mount static files if dist exists AND at a specific path, not root
-if dist_path.exists():
-    # Mount assets and other static files at specific paths
-    try:
-        app.mount("/static", StaticFiles(directory=str(dist_path)), name="static")
-        print(f"[SUCCESS] Mounted static files from: {dist_path.absolute()}")
-    except Exception as e:
-        print(f"[WARNING] Failed to mount static files: {e}")
-else:
-    print(f"[WARNING] Frontend dist folder not found")
+# # IMPORTANT: Only mount static files if dist exists AND at a specific path, not root
+# if dist_path.exists():
+#     # Mount assets and other static files at specific paths
+#     try:
+#         app.mount("/static", StaticFiles(directory=str(dist_path)), name="static")
+#         print(f"[SUCCESS] Mounted static files from: {dist_path.absolute()}")
+#     except Exception as e:
+#         print(f"[WARNING] Failed to mount static files: {e}")
+# else:
+#     print(f"[WARNING] Frontend dist folder not found")
 
 UPLOAD_DIR = Path("uploaded_code")
 UPLOAD_DIR.mkdir(exist_ok=True)
@@ -639,78 +639,78 @@ async def clear_all_data():
         print(f"❌ Clear failed: {str(e)}")
         return {"error": f"Failed to clear data: {str(e)}"}
 
-# FRONTEND SERVING - FIXED: Only serve frontend for non-API routes
-@app.get("/")
-async def serve_frontend():
-    """Serve the React frontend"""
-    possible_paths = [
-        Path("../dist/index.html"),
-        Path("./dist/index.html"), 
-        Path("../../dist/index.html")
-    ]
+# # FRONTEND SERVING - FIXED: Only serve frontend for non-API routes
+# @app.get("/")
+# async def serve_frontend():
+#     """Serve the React frontend"""
+#     possible_paths = [
+#         Path("../dist/index.html"),
+#         Path("./dist/index.html"), 
+#         Path("../../dist/index.html")
+#     ]
     
-    for index_path in possible_paths:
-        if index_path.exists():
-            print(f"[SUCCESS] Serving frontend from: {index_path.absolute()}")
-            return FileResponse(str(index_path))
+#     for index_path in possible_paths:
+#         if index_path.exists():
+#             print(f"[SUCCESS] Serving frontend from: {index_path.absolute()}")
+#             return FileResponse(str(index_path))
     
-    print("[WARNING] Frontend index.html not found")
-    return {
-        "message": "API is running but frontend not found", 
-        "checked_paths": [str(p) for p in possible_paths],
-        "current_dir": str(Path.cwd()),
-        "api_endpoints": [
-            "/upload-zip/",
-            "/generate-updated-zip/", 
-            "/save-updated-zip/",
-            "/download-zip",
-            "/list-indexed-files/",
-            "/health",
-            "/clear-all-data/"
-        ]
-    }
+#     print("[WARNING] Frontend index.html not found")
+#     return {
+#         "message": "API is running but frontend not found", 
+#         "checked_paths": [str(p) for p in possible_paths],
+#         "current_dir": str(Path.cwd()),
+#         "api_endpoints": [
+#             "/upload-zip/",
+#             "/generate-updated-zip/", 
+#             "/save-updated-zip/",
+#             "/download-zip",
+#             "/list-indexed-files/",
+#             "/health",
+#             "/clear-all-data/"
+#         ]
+#     }
 
-# FIXED: Catch-all route that properly handles API vs frontend routing
-@app.get("/{full_path:path}")
-async def serve_frontend_routes(full_path: str):
-    """Handle React Router routes and static assets - FIXED"""
+# # FIXED: Catch-all route that properly handles API vs frontend routing
+# @app.get("/{full_path:path}")
+# async def serve_frontend_routes(full_path: str):
+#     """Handle React Router routes and static assets - FIXED"""
     
-    # CRITICAL: Don't interfere with API routes - check for API prefixes
-    api_routes = [
-        "upload-zip", "generate-updated-zip", "save-updated-zip", 
-        "download-zip", "list-indexed-files", "health", "clear-all-data",
-        "docs", "openapi.json", "redoc"
-    ]
+#     # CRITICAL: Don't interfere with API routes - check for API prefixes
+#     api_routes = [
+#         "upload-zip", "generate-updated-zip", "save-updated-zip", 
+#         "download-zip", "list-indexed-files", "health", "clear-all-data",
+#         "docs", "openapi.json", "redoc"
+#     ]
     
-    # If it's an API route, return 404 (let FastAPI handle it properly)
-    if any(full_path.startswith(route) for route in api_routes):
-        print(f"[API] Attempted to access API route via catch-all: /{full_path}")
-        raise HTTPException(status_code=404, detail="API endpoint not found")
+#     # If it's an API route, return 404 (let FastAPI handle it properly)
+#     if any(full_path.startswith(route) for route in api_routes):
+#         print(f"[API] Attempted to access API route via catch-all: /{full_path}")
+#         raise HTTPException(status_code=404, detail="API endpoint not found")
     
-    # Check for static assets first
-    possible_dist_paths = [
-        Path("../dist"),
-        Path("./dist"), 
-        Path("../../dist")
-    ]
+#     # Check for static assets first
+#     possible_dist_paths = [
+#         Path("../dist"),
+#         Path("./dist"), 
+#         Path("../../dist")
+#     ]
     
-    for dist_path in possible_dist_paths:
-        if dist_path.exists():
-            asset_path = dist_path / full_path
-            if asset_path.exists() and asset_path.is_file():
-                print(f"[STATIC] Serving static asset: {asset_path}")
-                return FileResponse(str(asset_path))
-            break
+#     for dist_path in possible_dist_paths:
+#         if dist_path.exists():
+#             asset_path = dist_path / full_path
+#             if asset_path.exists() and asset_path.is_file():
+#                 print(f"[STATIC] Serving static asset: {asset_path}")
+#                 return FileResponse(str(asset_path))
+#             break
     
-    # Fall back to serving index.html for React Router
-    for dist_path in possible_dist_paths:
-        index_path = dist_path / "index.html"
-        if index_path.exists():
-            print(f"[FRONTEND] Serving React app for route: /{full_path}")
-            return FileResponse(str(index_path))
+#     # Fall back to serving index.html for React Router
+#     for dist_path in possible_dist_paths:
+#         index_path = dist_path / "index.html"
+#         if index_path.exists():
+#             print(f"[FRONTEND] Serving React app for route: /{full_path}")
+#             return FileResponse(str(index_path))
     
-    print(f"[WARNING] No frontend found for route: /{full_path}")
-    raise HTTPException(status_code=404, detail="Frontend not found")
+#     print(f"[WARNING] No frontend found for route: /{full_path}")
+#     raise HTTPException(status_code=404, detail="Frontend not found")
 
 if __name__ == "__main__":
     import uvicorn

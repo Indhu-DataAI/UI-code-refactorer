@@ -47,7 +47,7 @@ function App() {
     }
   });
  
-  const BACKEND = "http://localhost:8001";
+  const BACKEND = "https://ui-code-refactorer-backend.onrender.com";
  
   // Agent definitions
   const AGENT_DEFINITIONS = {
